@@ -2,6 +2,7 @@
 import re
 import json
 import math
+import time
 import requests
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
@@ -102,7 +103,12 @@ def fetch_coop_offers() -> list[dict]:
 def fetch_ica_offers() -> list[dict]:
     offers = []
     soup = BeautifulSoup(requests.get(ICA_URL, timeout=20).text, "lxml")
-    for art in soup.select("div.offers__container article"):
+    articles = soup.select("div.offers__container article")
+    
+    # TODO: Figure out why we only get 16 articles via soup
+    print(str(len(articles)) + " ICA produkter")
+    #main-content > div > div.offers__container > article:nth-child(73)
+    for art in articles:
         try:
             # ---------------- Product name ----------------
             name_tag = art.find("p", class_="offer-card__title")
@@ -130,9 +136,15 @@ def fetch_ica_offers() -> list[dict]:
             text = art.find("p", class_="offer-card__text").get_text(" ", strip=True)
             m = re.search(r"Ord\.pris\s+([0-9:.\-]+)", text)
             if not m:
-                continue
-            range_str = m.group(1)
-            ordinary_price = _avg_price_from_range(range_str)
+                # Try non-range format "Ord.pris XX:XX kr."
+                m = re.search(r"Ord\.pris\s+(\d+):(\d+)", text)
+                if not m:
+                    print(f"Skipping malformed article (no price): {name}")
+                    continue
+                ordinary_price = float(m.group(1)) + float(m.group(2))/100
+            else:
+                range_str = m.group(1)
+                ordinary_price = _avg_price_from_range(range_str)
             
             # ---------------- Brand ----------------
             text = art.find("p", class_="offer-card__text").get_text(" ", strip=True)
@@ -141,6 +153,11 @@ def fetch_ica_offers() -> list[dict]:
             pct_off = round(
                 (ordinary_price - sale_price_per_unit) / ordinary_price * 100, 1
             )
+            
+            
+            # ---
+            suffix = art.select_one(".price-splash__text__suffix")
+            unit = suffix.get_text(strip=True).lstrip("/") if suffix else 'st'
 
             offers.append(
                 {
@@ -150,15 +167,13 @@ def fetch_ica_offers() -> list[dict]:
                     "sale_price": round(sale_price_per_unit, 2),
                     "ordinary_price": round(ordinary_price, 2),
                     "pct_off": pct_off,
-                    "unit": art.select_one(".price-splash__text__suffix")
-                    .get_text(strip=True)
-                    .lstrip("/"),
+                    "unit": unit,
                 }
             )
         except Exception as e:
             # Skip malformed articles
             print(f"Skipping malformed article: {name}")
-            print(f"Error: {e}")
+            print(f"Error: {e} on line {e.__traceback__.tb_lineno}")
             continue
     return offers
 

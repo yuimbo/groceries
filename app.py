@@ -7,6 +7,13 @@ import requests
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from flask import Flask, render_template_string
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
 
@@ -102,79 +109,104 @@ def fetch_coop_offers() -> list[dict]:
 
 def fetch_ica_offers() -> list[dict]:
     offers = []
-    soup = BeautifulSoup(requests.get(ICA_URL, timeout=20).text, "lxml")
-    articles = soup.select("div.offers__container article")
     
-    # TODO: Figure out why we only get 16 articles via soup
-    print(str(len(articles)) + " ICA produkter")
-    #main-content > div > div.offers__container > article:nth-child(73)
-    for art in articles:
-        try:
-            # ---------------- Product name ----------------
-            name_tag = art.find("p", class_="offer-card__title")
-            name = name_tag.get_text(strip=True)
+    # Set up Chrome options for headless browsing
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    # Initialize the Chrome driver
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    
+    try:
+        # Load the page
+        driver.get(ICA_URL)
+        
+        # Wait for articles to be loaded (adjust timeout as needed)
+        wait = WebDriverWait(driver, 20)
+        articles = wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.offers__container article"))
+        )
+        
+        print(str(len(articles)) + " ICA produkter")
+        
+        for art in articles:
+            try:
+                # ---------------- Product name ----------------
+                name_tag = art.find_element(By.CSS_SELECTOR, "p.offer-card__title")
+                name = name_tag.text.strip()
 
-            # ---------------- Sale price ------------------
-            # First value always exists, optional secondaryValue for öre
-            first_val = art.select_one(".price-splash__text__firstValue")
-            sec_val = art.select_one(".price-splash__text__secondaryValue")
-            first_text = first_val.get_text(strip=True).replace(":-", "")
-            sale_price = float(first_text)
-            if sec_val:
-                sale_price += float("0." + sec_val.get_text(strip=True))
+                # ---------------- Sale price ------------------
+                first_val = art.find_element(By.CSS_SELECTOR, ".price-splash__text__firstValue")
+                first_text = first_val.text.strip().replace(":-", "")
+                sale_price = float(first_text)
+                
+                try:
+                    sec_val = art.find_element(By.CSS_SELECTOR, ".price-splash__text__secondaryValue")
+                    sale_price += float("0." + sec_val.text.strip())
+                except:
+                    pass
 
-            # If prefix like "2 för", divide price by qty
-            prefix = art.select_one(".price-splash__text__prefix")
-            qty = 1
-            if prefix:
-                m = re.match(r"\s*(\d+)\s*f[öo]r", prefix.get_text(strip=True), re.I)
-                if m:
-                    qty = int(m.group(1))
-            sale_price_per_unit = sale_price / qty
+                # If prefix like "2 för", divide price by qty
+                qty = 1
+                try:
+                    prefix = art.find_element(By.CSS_SELECTOR, ".price-splash__text__prefix")
+                    m = re.match(r"\s*(\d+)\s*f[öo]r", prefix.text.strip(), re.I)
+                    if m:
+                        qty = int(m.group(1))
+                except:
+                    pass
+                    
+                sale_price_per_unit = sale_price / qty
 
-            # ---------------- Ordinary price (range) -------
-            text = art.find("p", class_="offer-card__text").get_text(" ", strip=True)
-            m = re.search(r"Ord\.pris\s+([0-9:.\-]+)", text)
-            if not m:
-                # Try non-range format "Ord.pris XX:XX kr."
-                m = re.search(r"Ord\.pris\s+(\d+):(\d+)", text)
+                # ---------------- Ordinary price (range) -------
+                text = art.find_element(By.CSS_SELECTOR, "p.offer-card__text").text.strip()
+                m = re.search(r"Ord\.pris\s+([0-9:.\-]+)", text)
                 if not m:
-                    print(f"Skipping malformed article (no price): {name}")
-                    continue
-                ordinary_price = float(m.group(1)) + float(m.group(2))/100
-            else:
-                range_str = m.group(1)
-                ordinary_price = _avg_price_from_range(range_str)
-            
-            # ---------------- Brand ----------------
-            text = art.find("p", class_="offer-card__text").get_text(" ", strip=True)
-            brand = text.split('.')[0]
+                    # Try non-range format "Ord.pris XX:XX kr."
+                    m = re.search(r"Ord\.pris\s+(\d+):(\d+)", text)
+                    if not m:
+                        print(f"Skipping malformed article (no price): {name}")
+                        continue
+                    ordinary_price = float(m.group(1)) + float(m.group(2))/100
+                else:
+                    range_str = m.group(1)
+                    ordinary_price = _avg_price_from_range(range_str)
+                
+                # ---------------- Brand ----------------
+                brand = text.split('.')[0]
 
-            pct_off = round(
-                (ordinary_price - sale_price_per_unit) / ordinary_price * 100, 1
-            )
-            
-            
-            # ---
-            suffix = art.select_one(".price-splash__text__suffix")
-            unit = suffix.get_text(strip=True).lstrip("/") if suffix else 'st'
+                pct_off = round(
+                    (ordinary_price - sale_price_per_unit) / ordinary_price * 100, 1
+                )
+                
+                # ---
+                try:
+                    suffix = art.find_element(By.CSS_SELECTOR, ".price-splash__text__suffix")
+                    unit = suffix.text.strip().lstrip("/")
+                except:
+                    unit = 'st'
 
-            offers.append(
-                {
-                    "store": "ICA",
-                    "name": name,
-                    "brand": brand,
-                    "sale_price": round(sale_price_per_unit, 2),
-                    "ordinary_price": round(ordinary_price, 2),
-                    "pct_off": pct_off,
-                    "unit": unit,
-                }
-            )
-        except Exception as e:
-            # Skip malformed articles
-            print(f"Skipping malformed article: {name}")
-            print(f"Error: {e} on line {e.__traceback__.tb_lineno}")
-            continue
+                offers.append(
+                    {
+                        "store": "ICA",
+                        "name": name,
+                        "brand": brand,
+                        "sale_price": round(sale_price_per_unit, 2),
+                        "ordinary_price": round(ordinary_price, 2),
+                        "pct_off": pct_off,
+                        "unit": unit,
+                    }
+                )
+            except Exception as e:
+                # Skip malformed articles
+                print(f"Skipping malformed article: {name if 'name' in locals() else 'unknown'}")
+                print(f"Error: {e} on line {e.__traceback__.tb_lineno}")
+                continue
+    finally:
+        driver.quit()
+        
     return offers
 
 

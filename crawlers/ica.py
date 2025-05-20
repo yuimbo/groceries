@@ -1,5 +1,7 @@
 import re
 from typing import List
+from functools import lru_cache, wraps
+from time import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -9,6 +11,22 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from .base import Crawler
 from offer_types import Offer
+
+def timed_lru_cache(seconds: int, maxsize: int = 128):
+    def wrapper_decorator(func):
+        func = lru_cache(maxsize=maxsize)(func)
+        func.lifetime = seconds
+        func.expiration = time() + seconds
+
+        @wraps(func)
+        def wrapped_func(*args, **kwargs):
+            if time() >= func.expiration:
+                func.cache_clear()
+                func.expiration = time() + func.lifetime
+            return func(*args, **kwargs)
+
+        return wrapped_func
+    return wrapper_decorator
 
 class ICACrawler(Crawler):
     def __init__(self):
@@ -31,6 +49,7 @@ class ICACrawler(Crawler):
         prices = [self._price_text_to_float(p) for p in pts]
         return sum(prices) / len(prices)
 
+    @timed_lru_cache(seconds=300)  # 5 minutes cache
     def fetch_offers(self) -> List[Offer]:
         """Return list of offers from ICA."""
         offers: List[Offer] = []
@@ -105,6 +124,7 @@ class ICACrawler(Crawler):
                     # ---
                     try:
                         suffix = art.find_element(By.CSS_SELECTOR, ".price-splash__text__suffix")
+                        # TODO: If suffix has "pant", it is not unit but rather an extra fee
                         unit = suffix.text.strip().lstrip("/")
                     except:
                         unit = 'st'

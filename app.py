@@ -6,7 +6,7 @@ import time
 import requests
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
-from flask import Flask, render_template_string
+from flask import Flask, render_template
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -48,66 +48,17 @@ def fetch_lidl_flyer() -> str | None:
 # -----------------------  4.  ROUTE  &  RENDERING  ---------------------------#
 ################################################################################
 
-HTML_TEMPLATE = """
-<!doctype html>
-<html lang="sv">
-<head>
-  <meta charset="utf-8">
-  <title>Veckans bästa mat-deals</title>
-  <style>
-    body{font-family:sans-serif;margin:2rem;background:#fafafa;}
-    h1{text-align:center;}
-    table{border-collapse:collapse;width:100%;margin-bottom:3rem;}
-    th,td{padding:.65rem 1rem;border-bottom:1px solid #ddd;text-align:left;}
-    th{background:#eee;}
-    .badge{display:inline-block;padding:.1rem .35rem;font-size:.75rem;
-           color:#fff;border-radius:.25rem;margin-right:.4rem;}
-    .Coop{background:#019247}.ICA{background:#DB000B}
-    .brand{font-size:.8rem;color:#666;}
-  </style>
-</head>
-<body>
-  <h1>Veckans bästa deals – sorterat på högst %-rabatt</h1>
-
-  <table>
-    <thead>
-      <tr><th>Butik</th><th>Produkt</th><th>Reapris</th>
-          <th>Ord. pris</th><th>%-rabatt</th></tr>
-    </thead>
-    <tbody>
-      {% for o in deals %}
-        <tr>
-          <td><a class="badge {{o.store}}" href="{{link_urls[o.store]}}" target="_blank">{{o.store}}</a></td>
-          <td>{{o.name}} {% if o.brand %}<span class="brand">{{o.brand}}</span>{% endif %}</td>
-          <td>{{o.sale_price}} kr/{{o.unit}}</td>
-          <td>{{o.ordinary_price}} kr/{{o.unit}}</td>
-          <td><strong>{{o.pct_off}} %</strong></td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  {% if flyer %}
-    <h2>Lidl reklamblad</h2>
-    <p><a href="{{flyer}}" target="_blank" rel="noopener">Öppna veckans Lidl-blad (PDF / bild)</a></p>
-    <iframe src="{{flyer}}" style="width:100%;min-height:80vh;border:none;"></iframe>
-  {% endif %}
-</body>
-</html>
-"""
-
+coop_crawler = CoopCrawler()
+ica_crawler = ICACrawler()
 
 @app.route("/")
-def index():
-    coop_crawler = CoopCrawler()
-    ica_crawler = ICACrawler()
-    
+def index():    
     coop = coop_crawler.fetch_offers()
     ica = ica_crawler.fetch_offers()
     deals = sorted(coop + ica, key=lambda d: d["pct_off"], reverse=True)
     
-    return render_template_string(
-        HTML_TEMPLATE,
+    return render_template(
+        "index.html",
         deals=deals,
         flyer=fetch_lidl_flyer(),
         link_urls=LINK_URLS,

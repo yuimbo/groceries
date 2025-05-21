@@ -2,7 +2,9 @@
 <html lang="sv">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Veckans bästa mat-deals</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <style>
     body{font-family:sans-serif;margin:2rem;background:#fafafa;}
     h1{text-align:center;}
@@ -23,35 +25,70 @@
 <body>
   <h1>Veckans bästa deals – sorterat på högst %-rabatt</h1>
 
-  <table>
-    <thead>
-      <tr><th>Butik</th><th>Produkt</th><th>Reapris</th>
-          <th>Ord. pris</th><th>%-rabatt</th></tr>
-    </thead>
-    <tbody>
-      {% for o in deals %}
-        <tr class="{{o.store}} deal_row">
-          <td><a class="badge {{o.store}}" href="{{link_urls[o.store]}}" target="_blank">{{o.store}}</a></td>
-          <td>{{o.name}} {% if o.brand %}<span class="brand">{{o.brand}}</span>{% endif %}</td>
-          <td>{{o.sale_price}} kr/{{o.unit}}</td>
-          <td>{{o.ordinary_price}} kr/{{o.unit}}</td>
-          <td><strong>{{o.pct_off}} %</strong></td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr><th>Butik</th><th>Produkt</th><th>Reapris</th>
+            <th>Ord. pris</th><th>%-rabatt</th></tr>
+      </thead>
+      <tbody>
+        {% for o in deals %}
+          <tr class="{{o.store}} deal_row">
+            <td><a class="badge {{o.store}}" href="{{link_urls[o.store]}}" target="_blank" rel="noopener">{{o.store}}</a></td>
+            <td>{{o.name}} {% if o.brand %}<span class="brand">{{o.brand}}</span>{% endif %}</td>
+            <td>{{o.sale_price}} kr/{{o.unit}}</td>
+            <td>{{o.ordinary_price}} kr/{{o.unit}}</td>
+            <td><strong>{{o.pct_off}} %</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;">
+  <div class="flyer-grid">
     {% for key, flyer in flyer_urls.items() %}
-      <div>
+      <div class="flyer-container">
         <h2>{{key}} reklamblad</h2>
-        {% if key == "Lidl" and flyer %}
-          <iframe src="/proxy_pdf?url={{flyer|urlencode}}" style="width:100%;min-height:80vh;border:none;"></iframe>
+        {% if flyer %}
+          {% if key == "Lidl" %}
+            <div class="flyer-frame-container">
+              <iframe 
+                src="/proxy_pdf?url={{flyer|urlencode}}" 
+                class="flyer-frame"
+                loading="lazy"
+                onload="this.parentElement.classList.remove('loading')"
+                onerror="this.parentElement.innerHTML='<div class=\'error-message\'>Kunde inte ladda reklambladet</div>'"
+              ></iframe>
+              <div class="flyer-loading loading">
+                <div class="spinner"></div>
+              </div>
+            </div>
+          {% else %}
+            <div class="flyer-frame-container">
+              <iframe 
+                src="{{flyer}}" 
+                class="flyer-frame"
+                loading="lazy"
+                onload="this.parentElement.classList.remove('loading')"
+                onerror="this.parentElement.innerHTML='<div class=\'error-message\'>Kunde inte ladda reklambladet</div>'"
+              ></iframe>
+              <div class="flyer-loading loading">
+                <div class="spinner"></div>
+              </div>
+            </div>
+          {% endif %}
         {% else %}
-          <iframe src="{{flyer}}" style="width:100%;min-height:80vh;border:none;"></iframe>
+          <div class="error-message">Inget reklamblad tillgängligt</div>
         {% endif %}
       </div>
     {% endfor %}
   </div>
+
+  <script>
+    // Add loading class to all flyer containers initially
+    document.querySelectorAll('.flyer-frame-container').forEach(container => {
+      container.classList.add('loading');
+    });
+  </script>
 </body>
 </html> 

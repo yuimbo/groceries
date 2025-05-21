@@ -13,6 +13,11 @@
            color:#fff;border-radius:.25rem;margin-right:.4rem;}
     .Coop{background:#019247}.ICA{background:#DB000B}
     .brand{font-size:.8rem;color:#666;}
+    .deal_row{
+      background-color: #f0f0f0;
+      &.Coop{background-color: #d3ffe8;}
+      &.ICA{background-color: #ffe3e4;}
+    }
   </style>
 </head>
 <body>
@@ -25,7 +30,7 @@
     </thead>
     <tbody>
       {% for o in deals %}
-        <tr>
+        <tr class="{{o.store}} deal_row">
           <td><a class="badge {{o.store}}" href="{{link_urls[o.store]}}" target="_blank">{{o.store}}</a></td>
           <td>{{o.name}} {% if o.brand %}<span class="brand">{{o.brand}}</span>{% endif %}</td>
           <td>{{o.sale_price}} kr/{{o.unit}}</td>
@@ -36,13 +41,17 @@
     </tbody>
   </table>
 
-  {% for key, flyer in flyer_urls.items() %}
-    <h2>{{key}} reklamblad</h2>
-    {% if key == "Lidl" and flyer %}
-      <iframe src="/proxy_pdf?url={{flyer|urlencode}}" style="width:100%;min-height:80vh;border:none;"></iframe>
-    {% else %}
-      <iframe src="{{flyer}}" style="width:100%;min-height:80vh;border:none;"></iframe>
-    {% endif %}
-  {% endfor %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;">
+    {% for key, flyer in flyer_urls.items() %}
+      <div>
+        <h2>{{key}} reklamblad</h2>
+        {% if key == "Lidl" and flyer %}
+          <iframe src="/proxy_pdf?url={{flyer|urlencode}}" style="width:100%;min-height:80vh;border:none;"></iframe>
+        {% else %}
+          <iframe src="{{flyer}}" style="width:100%;min-height:80vh;border:none;"></iframe>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
 </body>
 </html> 

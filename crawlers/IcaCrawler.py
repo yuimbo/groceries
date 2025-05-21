@@ -1,7 +1,5 @@
 import re
 from typing import List
-from functools import lru_cache, wraps
-from time import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -9,26 +7,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from .base import Crawler
+from .Crawler import Crawler
+from .cache_utils import timed_lru_cache
 from offer_types import Offer
 
-def timed_lru_cache(seconds: int, maxsize: int = 128):
-    def wrapper_decorator(func):
-        func = lru_cache(maxsize=maxsize)(func)
-        func.lifetime = seconds
-        func.expiration = time() + seconds
-
-        @wraps(func)
-        def wrapped_func(*args, **kwargs):
-            if time() >= func.expiration:
-                func.cache_clear()
-                func.expiration = time() + func.lifetime
-            return func(*args, **kwargs)
-
-        return wrapped_func
-    return wrapper_decorator
-
-class ICACrawler(Crawler):
+class IcaCrawler(Crawler):
     def __init__(self):
         super().__init__("ICA")
         self.url = "https://www.ica.se/erbjudanden/ica-supermarket-hogdalen-1003514/"

@@ -36,10 +36,13 @@
     </tbody>
   </table>
 
-  {% if flyer %}
-    <h2>Lidl reklamblad</h2>
-    <p><a href="{{flyer}}" target="_blank" rel="noopener">Öppna veckans Lidl-blad (PDF / bild)</a></p>
-    <iframe src="{{flyer}}" style="width:100%;min-height:80vh;border:none;"></iframe>
-  {% endif %}
+  {% for key, flyer in flyer_urls.items() %}
+    <h2>{{key}} reklamblad</h2>
+    {% if key == "Lidl" and flyer %}
+      <iframe src="/proxy_pdf?url={{flyer|urlencode}}" style="width:100%;min-height:80vh;border:none;"></iframe>
+    {% else %}
+      <iframe src="{{flyer}}" style="width:100%;min-height:80vh;border:none;"></iframe>
+    {% endif %}
+  {% endfor %}
 </body>
 </html> 

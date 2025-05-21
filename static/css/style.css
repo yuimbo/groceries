@@ -40,6 +40,8 @@ table {
     border-collapse: collapse;
     width: 100%;
     min-width: 600px;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 th, td {
